@@ -26,7 +26,7 @@ document.getElementById("achievement-week").addEventListener("click", function (
 });
 
 function fetchLastPlayedGame(username, apiKey) {
-    const url = `https://retroachievements.org/API/API_GetUserSummary.php?z=${username}&y=${apiKey}`;
+    const url = `https://retroachievements.org/API/API_GetUserSummary.php?u=${username}&y=${apiKey}&g=1`;
 
     fetch(url)
         .then(response => {
@@ -37,8 +37,19 @@ function fetchLastPlayedGame(username, apiKey) {
         })
         .then(data => {
             if (data && data.RecentlyPlayed && data.RecentlyPlayed.length > 0) {
-                const lastGameId = data.RecentlyPlayed[0].GameID;
+                const lastGame = data.RecentlyPlayed[0];
+                const lastGameId = lastGame.GameID;
+                const lastGameTitle = lastGame.Title;
+                const lastGameImage = lastGame.ImageTitle;
+
                 fetchAchievements(username, lastGameId, apiKey);
+
+                // Exibe informações do último jogo jogado
+                document.getElementById("achievements").innerHTML = `
+                    <h2>Último Jogo Jogado:</h2>
+                    <h3>${lastGameTitle}</h3>
+                    <img src="https://retroachievements.org${lastGameImage}" alt="${lastGameTitle}">
+                `;
             } else {
                 document.getElementById("achievements").innerHTML = "<p>Nenhum jogo jogado recentemente encontrado.</p>";
             }
@@ -50,7 +61,7 @@ function fetchLastPlayedGame(username, apiKey) {
 }
 
 function fetchAchievements(username, gameId, apiKey) {
-    const url = `https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?z=${username}&y=${apiKey}&g=${gameId}`;
+    const url = `https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?u=${username}&z=${username}&y=${apiKey}&g=${gameId}`;
 
     fetch(url)
         .then(response => {
@@ -60,8 +71,8 @@ function fetchAchievements(username, gameId, apiKey) {
             return response.json();
         })
         .then(data => {
-            if (data && data.Achievements && data.Achievements.length > 0) {
-                displayAchievements(data.Achievements);
+            if (data && data.Achievements && Object.keys(data.Achievements).length > 0) {
+                displayAchievements(data.Achievements, data.Title, data.ImageTitle);
             } else {
                 document.getElementById("achievements").innerHTML = "<p>Não foram encontradas conquistas para este jogo.</p>";
             }
@@ -97,15 +108,16 @@ function displayAchievementOfTheWeek(data) {
 
     if (data && data.Achievement) {
         const achievement = data.Achievement;
+        const gameTitle = data.Game.Title; // Obter o título do jogo associado
 
         const achievementDiv = document.createElement("div");
         achievementDiv.classList.add("achievement");
 
         achievementDiv.innerHTML = `
-            <h3>${achievement.Title}</h3>
+            <h3>${achievement.Title} - ${gameTitle}</h3>
             <p>${achievement.Description}</p>
             <p>Pontos: ${achievement.Points}</p>
-            <img src="https://retroachievements.org/${achievement.BadgeName}" alt="${achievement.Title}">
+            <img src="https://media.retroachievements.org/Badge/${achievement.BadgeName}.png" alt="${achievement.Title}">
         `;
 
         achievementsContainer.appendChild(achievementDiv);
@@ -114,11 +126,11 @@ function displayAchievementOfTheWeek(data) {
     }
 }
 
-function displayAchievements(achievements) {
+function displayAchievements(achievements, gameTitle, gameImage) {
     const achievementsContainer = document.getElementById("achievements");
     achievementsContainer.innerHTML = ""; // Limpa os resultados anteriores
 
-    achievements.forEach(achievement => {
+    Object.values(achievements).forEach(achievement => {
         const achievementDiv = document.createElement("div");
         achievementDiv.classList.add("achievement");
 
@@ -126,9 +138,16 @@ function displayAchievements(achievements) {
             <h3>${achievement.Title}</h3>
             <p>${achievement.Description}</p>
             <p>Pontos: ${achievement.Points}</p>
-            <img src="https://retroachievements.org/${achievement.BadgeName}" alt="${achievement.Title}">
+            <img src="https://media.retroachievements.org/Badge/${achievement.BadgeName}.png" alt="${achievement.Title}">
         `;
 
         achievementsContainer.appendChild(achievementDiv);
     });
+
+    // Adiciona o título e imagem do jogo no topo
+    achievementsContainer.insertAdjacentHTML("afterbegin", `
+        <h2>Conquistas para ${gameTitle}</h2>
+        <img src="https://retroachievements.org${gameImage}" alt="${gameTitle}">
+    `);
 }
+
