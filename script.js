@@ -1,4 +1,7 @@
-document.getElementById("config-form").addEventListener("submit", function (event) {
+document.getElementById("config-form").addEventListener("submit", handleFormSubmit);
+document.getElementById("achievement-week").addEventListener("click", handleAchievementWeekClick);
+
+function handleFormSubmit(event) {
     event.preventDefault();
 
     const username = document.getElementById("username").value;
@@ -10,120 +13,85 @@ document.getElementById("config-form").addEventListener("submit", function (even
     document.body.style.backgroundColor = backgroundColor;
 
     // Verifica se o campo gameId está vazio
-    if (gameId === "") {
-        // Se estiver vazio, busca o último jogo jogado pelo usuário
+    if (!gameId) {
         fetchLastPlayedGame(username, apiKey);
     } else {
-        // Caso contrário, busca as conquistas do jogo informado
         fetchAchievements(username, gameId, apiKey);
     }
-});
+}
 
-// Novo listener para o botão "Conquista da Semana"
-document.getElementById("achievement-week").addEventListener("click", function () {
-    const apiKey = document.getElementById("api-key").value; // Pega a chave da API do input
-    fetchAchievementOfTheWeek(apiKey); // Chama a função para buscar a conquista da semana
-});
+function handleAchievementWeekClick() {
+    const apiKey = document.getElementById("api-key").value;
+    fetchAchievementOfTheWeek(apiKey);
+}
 
-function fetchLastPlayedGame(username, apiKey) {
+async function fetchLastPlayedGame(username, apiKey) {
     const url = `https://retroachievements.org/API/API_GetUserSummary.php?u=${username}&y=${apiKey}&g=1`;
 
-    fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Erro na resposta: ${response.status} ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data && data.RecentlyPlayed && data.RecentlyPlayed.length > 0) {
-                const lastGame = data.RecentlyPlayed[0];
-                const lastGameId = lastGame.GameID;
-                const lastGameTitle = lastGame.Title;
-                const lastGameImage = lastGame.ImageTitle;
+    try {
+        const response = await fetch(url);
+        handleFetchResponse(response);
 
-                fetchAchievements(username, lastGameId, apiKey);
-
-                // Exibe informações do último jogo jogado
-                document.getElementById("achievements").innerHTML = `
-                    <h2>Último Jogo Jogado:</h2>
-                    <h3>${lastGameTitle}</h3>
-                    <img src="https://retroachievements.org${lastGameImage}" alt="${lastGameTitle}">
-                `;
-            } else {
-                document.getElementById("achievements").innerHTML = "<p>Nenhum jogo jogado recentemente encontrado.</p>";
-            }
-        })
-        .catch(error => {
-            console.error("Erro ao buscar o último jogo jogado:", error);
-            document.getElementById("achievements").innerHTML = "<p>Erro ao buscar o último jogo jogado. Verifique os dados fornecidos.</p>";
-        });
+        const data = await response.json();
+        if (data?.RecentlyPlayed?.length) {
+            const { GameID: lastGameId, Title: lastGameTitle, ImageTitle: lastGameImage } = data.RecentlyPlayed[0];
+            fetchAchievements(username, lastGameId, apiKey);
+            displayLastPlayedGame(lastGameTitle, lastGameImage);
+        } else {
+            displayMessage("Nenhum jogo jogado recentemente encontrado.");
+        }
+    } catch (error) {
+        console.error("Erro ao buscar o último jogo jogado:", error);
+        displayMessage("Erro ao buscar o último jogo jogado. Verifique os dados fornecidos.");
+    }
 }
 
-function fetchAchievements(username, gameId, apiKey) {
+async function fetchAchievements(username, gameId, apiKey) {
     const url = `https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?u=${username}&z=${username}&y=${apiKey}&g=${gameId}`;
 
-    fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Erro na resposta: ${response.status} ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data && data.Achievements && Object.keys(data.Achievements).length > 0) {
-                displayAchievements(data.Achievements, data.Title, data.ImageTitle);
-            } else {
-                document.getElementById("achievements").innerHTML = "<p>Não foram encontradas conquistas para este jogo.</p>";
-            }
-        })
-        .catch(error => {
-            console.error("Erro ao buscar conquistas:", error);
-            document.getElementById("achievements").innerHTML = "<p>Erro ao buscar conquistas. Verifique se o ID do jogo e a API Key estão corretos.</p>";
-        });
+    try {
+        const response = await fetch(url);
+        handleFetchResponse(response);
+
+        const data = await response.json();
+        if (data?.Achievements) {
+            displayAchievements(data.Achievements, data.Title, data.ImageTitle);
+        } else {
+            displayMessage("Não foram encontradas conquistas para este jogo.");
+        }
+    } catch (error) {
+        console.error("Erro ao buscar conquistas:", error);
+        displayMessage("Erro ao buscar conquistas. Verifique se o ID do jogo e a API Key estão corretos.");
+    }
 }
 
-function fetchAchievementOfTheWeek(apiKey) {
+async function fetchAchievementOfTheWeek(apiKey) {
     const url = `https://retroachievements.org/API/API_GetAchievementOfTheWeek.php?y=${apiKey}`;
 
-    fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Erro na resposta: ${response.status} ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            displayAchievementOfTheWeek(data);
-        })
-        .catch(error => {
-            console.error("Erro ao buscar a conquista da semana:", error);
-            document.getElementById("achievements").innerHTML = "<p>Erro ao buscar a conquista da semana. Verifique a chave da API.</p>";
-        });
+    try {
+        const response = await fetch(url);
+        handleFetchResponse(response);
+
+        const data = await response.json();
+        displayAchievementOfTheWeek(data);
+    } catch (error) {
+        console.error("Erro ao buscar a conquista da semana:", error);
+        displayMessage("Erro ao buscar a conquista da semana. Verifique a chave da API.");
+    }
 }
 
-function displayAchievementOfTheWeek(data) {
-    const achievementsContainer = document.getElementById("achievements");
-    achievementsContainer.innerHTML = ""; // Limpa os resultados anteriores
-
-    if (data && data.Achievement) {
-        const achievement = data.Achievement;
-        const gameTitle = data.Game.Title; // Obter o título do jogo associado
-
-        const achievementDiv = document.createElement("div");
-        achievementDiv.classList.add("achievement");
-
-        achievementDiv.innerHTML = `
-            <h3>${achievement.Title} - ${gameTitle}</h3>
-            <p>${achievement.Description}</p>
-            <p>Pontos: ${achievement.Points}</p>
-            <img src="https://media.retroachievements.org/Badge/${achievement.BadgeName}.png" alt="${achievement.Title}">
-        `;
-
-        achievementsContainer.appendChild(achievementDiv);
-    } else {
-        achievementsContainer.innerHTML = "<p>Não foram encontradas conquistas da semana.</p>";
+function handleFetchResponse(response) {
+    if (!response.ok) {
+        throw new Error(`Erro na resposta: ${response.status} ${response.statusText}`);
     }
+}
+
+function displayLastPlayedGame(title, image) {
+    document.getElementById("achievements").innerHTML = `
+        <h2>Último Jogo Jogado:</h2>
+        <h3>${title}</h3>
+        <img src="https://retroachievements.org${image}" alt="${title}">
+    `;
 }
 
 function displayAchievements(achievements, gameTitle, gameImage) {
@@ -131,16 +99,7 @@ function displayAchievements(achievements, gameTitle, gameImage) {
     achievementsContainer.innerHTML = ""; // Limpa os resultados anteriores
 
     Object.values(achievements).forEach(achievement => {
-        const achievementDiv = document.createElement("div");
-        achievementDiv.classList.add("achievement");
-
-        achievementDiv.innerHTML = `
-            <h3>${achievement.Title}</h3>
-            <p>${achievement.Description}</p>
-            <p>Pontos: ${achievement.Points}</p>
-            <img src="https://media.retroachievements.org/Badge/${achievement.BadgeName}.png" alt="${achievement.Title}">
-        `;
-
+        const achievementDiv = createAchievementElement(achievement);
         achievementsContainer.appendChild(achievementDiv);
     });
 
@@ -151,3 +110,40 @@ function displayAchievements(achievements, gameTitle, gameImage) {
     `);
 }
 
+function createAchievementElement(achievement) {
+    const achievementDiv = document.createElement("div");
+    achievementDiv.classList.add("achievement");
+    achievementDiv.innerHTML = `
+        <h3>${achievement.Title}</h3>
+        <p>${achievement.Description}</p>
+        <p>Pontos: ${achievement.Points}</p>
+        <img src="https://media.retroachievements.org/Badge/${achievement.BadgeName}.png" alt="${achievement.Title}">
+    `;
+    return achievementDiv;
+}
+
+function displayAchievementOfTheWeek(data) {
+    const achievementsContainer = document.getElementById("achievements");
+    achievementsContainer.innerHTML = ""; // Limpa os resultados anteriores
+
+    if (data?.Achievement) {
+        const { Title: achievementTitle, Description, Points, BadgeName } = data.Achievement;
+        const gameTitle = data.Game.Title;
+
+        const achievementDiv = document.createElement("div");
+        achievementDiv.classList.add("achievement");
+        achievementDiv.innerHTML = `
+            <h3>${achievementTitle} - ${gameTitle}</h3>
+            <p>${Description}</p>
+            <p>Pontos: ${Points}</p>
+            <img src="https://media.retroachievements.org/Badge/${BadgeName}.png" alt="${achievementTitle}">
+        `;
+        achievementsContainer.appendChild(achievementDiv);
+    } else {
+        achievementsContainer.innerHTML = "<p>Não foram encontradas conquistas da semana.</p>";
+    }
+}
+
+function displayMessage(message) {
+    document.getElementById("achievements").innerHTML = `<p>${message}</p>`;
+}
